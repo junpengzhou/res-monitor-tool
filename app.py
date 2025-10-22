@@ -12,9 +12,13 @@ app = Flask(__name__)
 current_public_ip = None
 # 定义公网IP的获取服务器
 services = [
-    'https://api.ipify.org',
     'https://icanhazip.com',
-    'https://ident.me'
+    'https://ipecho.net/plain',
+    'https://myexternalip.com/raw',
+    'https://wtfismyip.com/text',
+    'https://ipinfo.io/ip',
+    'https://checkip.amazonaws.com',
+    'https://api.my-ip.io/ip'
 ]
 
 
