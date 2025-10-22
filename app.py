@@ -20,33 +20,28 @@ services = [
     'https://checkip.amazonaws.com',
     'https://api.my-ip.io/ip'
 ]
+# 日志文件路径
+log_filepath = 'logs/ip_change.log'
 
 
 def get_public_ip():
     """
     获取当前公网IP地址
     """
-    try:
-
-        for service in services:
-            try:
-                response = requests.get(service, timeout=10)
-                if response.status_code == 200:
-                    ip = response.text.strip()
-                    # 验证IP地址格式
-                    if validate_ip_address(ip):
-                        app.logger.info(f"成功从 {service} 获取IP: {ip}")
-                        return ip
-            except requests.RequestException as e:
-                app.logger.warning(f"从 {service} 获取IP失败: {str(e)}")
-                continue
-
-        app.logger.error("所有IP查询服务均失败")
-        return None
-
-    except Exception as e:
-        app.logger.error(f"获取公网IP时发生异常: {str(e)}")
-        return None
+    for service in services:
+        try:
+            response = requests.get(service, timeout=10)
+            if response.status_code == 200:
+                ip = response.text.strip()
+                # 验证IP地址格式
+                if validate_ip_address(ip):
+                    return ip
+        except requests.RequestException:
+            continue
+        except Exception as e:
+            app.logger.error(f"获取公网IP时发生异常: {str(e)}")
+            continue
+    return None
 
 
 def validate_ip_address(ip):
@@ -74,7 +69,7 @@ def setup_logging():
 
     # 创建日志处理器
     file_handler = RotatingFileHandler(
-        filename='logs/ip_change.log',
+        filename=log_filepath,
         encoding='utf-8',
         mode='a',
         maxBytes=102400,
@@ -142,8 +137,6 @@ def check_ip_change():
             current_public_ip = new_ip
 
             send_alert_message_of_ip_change(current_public_ip, new_ip)
-        else:
-            app.logger.info(f"IP检查正常: {current_public_ip}")
 
     except Exception as e:
         app.logger.error(f"检查IP变更时发生异常: {str(e)}")
@@ -213,9 +206,11 @@ def send_alert_message_of_ip_change(prev_ip, new_ip):
     max_retries = 3
     for attempt in range(max_retries):
         try:
+            # 请求Teams的Webhook进行告警通知
             response = requests.post(teams_webhook_url, json=payload, timeout=30)
-            if response.status_code == 200:
-                app.logger.info("Teams告警发送成功")
+            # Teams的响应码范围是200-299，只用200去判断会有大量的误判的问题
+            if 200 <= response.status_code < 300:
+                app.logger.info("Teams告警发送成功！")
                 return
             else:
                 app.logger.error(f"发送Teams告警失败 (尝试 {attempt + 1}/{max_retries}): {response.text}")
@@ -234,6 +229,7 @@ def initialize_app():
     global current_public_ip
     current_public_ip = get_public_ip()
 
+    # 如果没有办法获取到公网IP打印出错误提醒出来
     if current_public_ip:
         app.logger.info(f"应用启动，初始公网IP: {current_public_ip}")
     else:
@@ -254,7 +250,7 @@ def index():
     <h1>公网IP监控系统</h1>
     <p>{ip_status}</p>
     <p>最后检查时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-    <p>查看日志文件: logs/ip_change_error.log</p>
+    <p>查看日志文件: {log_filepath}</p>
     '''
 
 
